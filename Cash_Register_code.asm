@@ -1,0 +1,1484 @@
+#make_bin#   
+
+#LOAD_SEGMENT=FFFFh# 
+#LOAD_OFFSET=0000h#
+
+#CS=0000h#
+#IP=0000h#
+
+#DS=0000h#
+#ES=0000h#
+
+#SS=0000h#
+#SP=FFFEh#
+
+#AX=0000h#
+#BX=0000h#
+#CX=0000h#
+#DX=0000h#
+#SI=0000h#
+#DI=0000h#
+#BP=0000h#
+
+	
+	call st1:
+	db 1021 dup(0)
+  	 ;initilaize ports
+        portA equ 00h   ;8255
+        portB equ 02h
+        portC equ 04h
+        creg1 equ 06h
+        
+        cnt0 equ 08h    ;8253
+        cnt1 equ 0Ah
+        cnt2 equ 0Ch
+        creg2 equ 0Eh
+        
+        PORTA_VAL DB 0
+	     	PORTB_VAL DB 0
+	     	PORTC_VAL DB 0
+       
+      	key_press_table db 0feh,0eh,00h ,0fdh,0eh,01h ,0fbh,0eh,02h ,0f7h,0eh,03h ,0efh,0eh,04h ,0dfh,0eh,05h ,0bfh,0eh,06h ,07fh,0eh,07h ,
+									db	 0feh,0dh,08h ,0fdh,0dh,09h ,0fbh,0dh,0AAh ,0f7h,0dh,0ABh ,0dfh,0dh,0ACh ,0dfh,0dh,0ADh ,0bfh,0dh,0AEh ,07fh,0dh,0AFh ,
+									db	 0feh,0bh,0BAh ,0fdh,0bh,0BBh ,0fbh,0bh,0BCh ,0f7h,0bh,0BDh ,0bfh,0bh,0BEh ,0dfh,0bh,0BFh ,0bfh,0bh,0CAh ,07fh,0bh,0CBh 
+  
+st1:
+	  mov       ax,0200h																											;/////////////START OF MAIN PROGRAM//////////////////
+      mov       ds,ax
+      mov       es,ax
+      mov       ss,ax
+      mov       sp,00FFEH
+      
+
+        
+        ;setting up 8255(Port A=00h,Port B=02h,Port C=04h,Control Reg=06h)
+        ;Port A-Output to Keyboard(For detection of keypress)
+        ;Port B-Output to the LCD(Data)
+        ;Port C(upper)-Input from the keyboard
+        ;Port C(lower)-Output to the LCD  
+        mov al,88h			
+        out 06h,al    
+        
+        mov di,100h                 ;Setting the item array in program mode to FFFFFFFF(1 entry=6 bytes) 
+        mov cx,100d
+set_next_val:
+
+        mov word ptr[di],0FFFFh 
+        add di,02h
+        mov word ptr[di],0FFFFh
+        add di,02h
+        mov word ptr[di],0FFFFh
+        add di,02h
+        dec cx
+        jnz set_next_val
+        
+        
+               
+  																																													
+        call LCD_INIT
+        call LCD_CLEAR          
+        
+st2:
+
+reset_stack_check_lock:
+				mov sp,00FFEh
+ check_lock:																																						
+        in al,04h
+        and al,80h		;checking pc7 bit  for lock open?
+        cmp al,80h
+        jz enter_main_program
+        call lock_keypress
+        cmp bh,0eeh			;Code for buzzer activation 
+        jnz no_buzzer
+        call activate_buzzer
+no_buzzer:                                                                                  
+        jmp check_lock
+        
+        
+                                                                                                    
+        
+enter_main_program :     
+        call LCD_CLEAR
+		mov ah,'S'
+        call LCD_WRITE_CHAR
+        mov ah,'Y'
+        call LCD_WRITE_CHAR
+        mov ah,'S'
+        call LCD_WRITE_CHAR
+        mov ah,'T'
+        call LCD_WRITE_CHAR
+        mov ah,'E'
+        call LCD_WRITE_CHAR
+        mov ah,'M'
+        call LCD_WRITE_CHAR
+        mov ah,' '
+        call LCD_WRITE_CHAR
+        mov ah,'R'
+        call LCD_WRITE_CHAR
+        mov ah,'E'
+        call LCD_WRITE_CHAR
+        mov ah,'A'
+        call LCD_WRITE_CHAR
+        mov ah,'D'
+        call LCD_WRITE_CHAR
+        mov ah,'Y'
+        call LCD_WRITE_CHAR
+								;;;Print "System Ready to the LCD screen"
+                
+check_mode:                
+      call get_keypress
+      cmp bh,0BCh
+      jnz check_mode
+
+print_select_mode:
+      ;Keypress is MODE
+      
+      call LCD_CLEAR
+      
+      mov ah,'S'
+      call LCD_WRITE_CHAR
+      mov ah,'E'
+      call LCD_WRITE_CHAR
+      mov ah,'L'
+      call LCD_WRITE_CHAR
+      mov ah,'E'
+      call LCD_WRITE_CHAR
+      mov ah,'C'
+      call LCD_WRITE_CHAR
+      mov ah,'T'
+      call LCD_WRITE_CHAR
+      mov ah,' '
+      call LCD_WRITE_CHAR
+      mov ah,'M'
+      call LCD_WRITE_CHAR
+      mov ah,'O'
+      call LCD_WRITE_CHAR
+      mov ah,'D'
+      call LCD_WRITE_CHAR
+      mov ah,'E'
+      call LCD_WRITE_CHAR
+      ;;;Print "Select Mode" to the LCD
+      
+check_trans_prog:				;Checking if keypress is transaction/program mode
+			call get_keypress
+      cmp bh,0BDh
+      jnz not_trans
+      ;To get into transaction mode
+      ;;;Print Enter Trans Mode(y/N) onto LCD
+      
+      call LCD_CLEAR
+      
+    	mov ah,'E'
+      call LCD_WRITE_CHAR
+      mov ah,'N'
+      call LCD_WRITE_CHAR
+      mov ah,'T'
+      call LCD_WRITE_CHAR
+      mov ah,'E'
+      call LCD_WRITE_CHAR
+      mov ah,'R'
+      call LCD_WRITE_CHAR
+      mov ah,' '
+      call LCD_WRITE_CHAR
+      mov ah,'T'
+      call LCD_WRITE_CHAR
+      mov ah,'R'
+      call LCD_WRITE_CHAR
+      mov ah,'A'
+      call LCD_WRITE_CHAR
+      mov ah,'N'
+      call LCD_WRITE_CHAR
+      mov ah,'S'
+      call LCD_WRITE_CHAR
+      mov ah,'?'
+      call LCD_WRITE_CHAR
+      
+      mov ah,' '
+      call LCD_WRITE_CHAR
+      mov ah,'Y'
+      call LCD_WRITE_CHAR
+      mov ah,'/'
+      call LCD_WRITE_CHAR
+      mov ah,'N'
+      call LCD_WRITE_CHAR
+      
+      
+      
+      
+ t_get_confirmation:
+      call get_keypress
+      cmp bh,0AAh		;Yes code
+      jnz trans_not_yes
+      call transaction_mode
+      jmp print_select_mode				;Once done, go back to select mode
+      
+  trans_not_yes:
+  		jmp print_select_mode
+      
+ not_trans:
+ 			cmp bh,0BEh		;Code for program mode
+      jnz print_select_mode
+      call program_mode
+      jmp print_select_mode
+  		
+      
+      
+HLT           ; halt!																																	///// END OF MAIN PROGRAM /////////////
+
+
+activate_buzzer proc near
+        ;TIMER specifications
+        ;Counter0=2.5Mhz->4Hz
+        ;					counter val=62500d
+        ;         Mode 3
+        ;         Clk =2.5Mhz
+        ;					Gate=+Vcc
+        ;Counter1=4Hz(from counter0)->1 minute low pulse
+        ;					counter val=240d
+        ;         Mode 0
+        ;         Clk =4Hz
+        ;					Gate=+Vcc
+        ;Counter2=2.5Mhz->4Khz
+        ;					counter val=625d
+        ;         Mode 2
+        ;         Clk =2.5Mhz
+        ;					Gate=(clk1)'  //clk 1 through not gate for 1 min high signal
+
+		mov al,00110110b		;control word for counter 0
+    out 0eh,al
+    mov al,01110000b		;contol word for counter 1
+    out 0eh,al
+    mov al,10110100b		;control word for counter 2
+    out 0eh,al
+    
+    mov al,00100100b			;LSB for 625000
+    out 08h,al
+    mov al,11110100b			;MSB for 625000
+    out 08h,al
+    
+    mov al,11110000b			;LSB for 240
+    out 0ah,al
+    mov al,00000000b			;MSB for 240
+    out 0ah,al
+    
+    mov al,01110001b			;LSB for 625
+    out 0ch,al
+    mov al,00000010b			;MSB for 625
+    out 0ch,al
+
+check_1_min_timer:
+    mov al,01000000b			;Reading count val of counter1(I minute check)
+   	out 0eh,al
+    in al,0ah
+    mov ah,al
+    in al,0ah
+    cmp ax,00h
+    jnz check_1_min_timer
+    
+    
+      
+ret 
+activate_buzzer endp
+
+
+lock_keypress proc near																															;/////Start of LOCK_keypress proc////////////
+ push AX
+    ;check if no keys are pressed(all high)
+lk_check_unpressed:
+    in al,04h
+    and al,0f0h ;We only want higher bits 
+    cmp al,70h		;TTL lock is going to be low. We know that
+    jne lk_check_unpressed
+                  
+    call delay_deb																																	
+    
+    ;No keys are pressed
+    ;check if key is pressed/ lock is closed
+lk_sec_stop:
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h     ;System is unlocked
+    jne lk_th_stop
+    mov bh,0feh				;Different from buzzer code  
+    pop AX
+		ret						;The check lock code will check for system unlocked
+    
+    
+lk_th_stop:
+    call delay_deb      
+    
+    in al,04h
+    and al,0f0h
+    cmp al,070h
+    je lk_sec_stop
+    
+    mov bh,0eeh		;Sensed keypress therefore sound buzzer(Buzzer code returned)  
+    pop AX
+      
+ret
+endp lock_keypress																																	;///////////END OF LOCK KEYPRESS////////////
+
+program_mode proc near																															;////////START OF PROGRAM MODE SUBROUTINE/////////////      
+      
+
+prog_get_keypress:
+
+  	call get_keypress		;keypress stored in bh register
+    ;cmp bh,0ffh					;checking whether lock is pressed 
+    ;jnz no_lock
+    ;mov bh,0ffh		
+    ;ret									;if lock is closed return to main with ff in bh
+    
+    cmp bh,0AFh	;Code for item no.
+  	jnz no_add_item
+    jmp add_item
+    
+no_add_item:
+    cmp bh,0CAh				;checking if delete key is pressed
+    jnz no_del_item
+    jmp del_item
+    
+no_del_item:
+		cmp bh,0BCh			;checking if mode is pressed 
+    jnz none_of_these		;then just continue to add item
+    mov bh,0DDh				;Normal program mode termination
+    ret
+    
+    
+none_of_these:    
+jmp prog_get_keypress
+    
+add_item:   
+	mov di,100h						; mov di,(Put in required address)
+   	mov cx,100d
+		
+    ;Traverses array to find empty space
+next_loc:
+    cmp word ptr[di],0FFFFh
+    jz found_space
+    cmp word ptr[di],0000h
+    jz found_space
+    inc di
+    inc di
+    inc di 
+    inc di
+    inc di
+    inc di
+    dec cx
+    jnz next_loc
+    
+    mov bh,0ddh
+    ret
+    ;If more than 100 items are already present(Should not occur)
+
+
+		;Item no. has to be 4-digit number(each no b/w 0 to 9)
+found_space:
+		mov cx,05h
+key1:
+    call get_keypress	;getting item no from user 
+    cmp bh,0Ah
+    jb number					
+    ;Not number
+    
+check_costkey:
+    cmp bh,0CBh			;Code for cost key
+    jnz ch_backspace2
+    cmp cx,01h
+    jnz key1
+    jmp get_cost
+    
+    
+
+ch_backspace2:
+    cmp bh, 0ADh		;Backspace is pressed
+    jnz key1
+    cmp cx,05h			;at max 4 backspaces
+    jz no_backspace
+    pop dx
+    inc cx				;remove character from stack
+no_backspace:
+		jmp key1			;wait for next keypress
+    
+    
+number:
+		mov bl,bh
+    mov bh,00h
+    push bx
+    dec cx
+    jnz key1
+    
+  ;Now we have got the item number in the stack
+
+  ;Inputting 4-digit cost(BCD)
+ 
+get_cost:
+
+mov cx,05h
+    
+key2:
+    call get_keypress	;getting cost from user 
+    cmp bh,0Ah
+    jb number0
+    ;Not number
+    
+    cmp bh,0ACh
+    jnz ch_backspace0
+    cmp cx,01h
+    jnz key2
+    jmp showing1
+    
+    
+ch_backspace0:    
+    cmp bh, 0ADh		;Backspace is pressed
+    jnz key2
+    cmp cx,05h
+    jz no_backspace0
+    pop dx	
+    inc cx			;remove character from stack
+no_backspace0:
+		jmp key2				;wait for next keypress
+    
+number0:
+		mov bl,bh
+    mov bh,00h
+    push bx
+    dec cx
+    jnz key2
+    
+    ;Now we have got the cost in stack as well
+    
+    ;waiting for enter key 
+key3:
+		call get_keypress
+    cmp bh,0ACh
+    jnz key3
+showing1:    
+    ;Printing to LCD for conformation
+    call LCD_CLEAR
+    
+    mov bp,sp			;to print values entered by user
+    add bp,0eh		;moving bp to beginning of entry
+    
+    mov cx,08h
+
+show_next:
+    mov ax,[bp]
+    mov ah,al
+    or ah,30h			;ascii value for number on stack
+    call LCD_WRITE_CHAR
+    dec bp
+    dec bp
+    dec cx
+    cmp cx,04h
+    jnz x1
+    mov ah,' '
+    call LCD_WRITE_CHAR
+    mov ah,' '
+    call LCD_WRITE_CHAR
+    
+x1:
+		cmp cx,00h
+    jnz show_next
+    
+    ;Now to get confirmation of the values entered
+
+key4:
+		call get_keypress
+    cmp bh,0AAh		;Yes case
+    jnz not_yes
+    jmp yes_case  
+not_yes:
+    cmp bh,0ABh		;No case
+    jnz key4			;  if iits not yes or no wait for another keypress
+    pop ax					;Clearing stack
+    pop ax
+    pop ax
+    pop ax
+    pop ax
+    pop ax
+    pop ax
+    pop ax
+  
+    mov bh,0ddh		;Normal termination
+    ret
+    
+yes_case:		;Entering values into memory
+		;1234
+    ;01020304	
+    ;For cost
+    pop bx		;loading entry from stack 
+    pop ax
+    ;eg ax=0001 bx=0002
+    rol al,4h
+    add al,bl
+    mov dl,al
+    ;now dl=12 
+    pop bx
+    pop ax
+    ;eg ax=0001 bx=0002
+    rol al,4h
+    add al,bl
+    mov dh,al			;cost found
+    
+    inc di
+    inc di
+    mov [di],dx			;Storing BCD cost(for outputting)
+    inc di
+    inc di
+    call bcd_to_bin
+    mov [di],dx			;Storing binary cost(for processing)
+    
+    dec di
+    dec di
+    dec di
+    dec di					;to write item code before(Format : item cide , BCD , binary )
+    
+    pop bx		;loading entry from stack(for item code)
+    pop ax
+    ;eg ax=0001 bx=0002
+    rol al,4h
+    add al,bl
+    mov dl,al
+    ;now dl=12 
+    pop bx
+    pop ax
+    ;eg ax=0001 bx=0002
+    rol al,4h
+    add al,bl
+    mov dh,al			;item code found
+    mov [di],dx		;Item code
+    
+    mov bh,0ddh
+    ret 
+    ;FF34560493F
+    
+    
+del_item:
+key5:
+		call get_keypress
+    cmp bh,0AFh	;Code for item no.
+  	jnz key5
+    jmp	take_item_no
+    
+take_item_no:
+		mov cx,05h
+key6:
+    call get_keypress	;getting item no from user 
+    cmp bh,0Ah
+    jb number6																																								
+    ;Not number
+    
+    cmp  bh,0ACh
+    jnz ch_backspace1
+    cmp cx,01h
+    jnz key6
+    jmp showing
+    
+    
+
+ch_backspace1:
+    cmp bh, 0ADh		;Backspace is pressed
+    jnz key6
+    cmp cx,05h
+    jz no_backspace6
+    pop dx			;remove character from stack 
+    inc cx
+no_backspace6:
+		jmp key6				;wait for next keypress
+    
+number6:
+		mov bl,bh
+    mov bh,00h
+    push bx
+    dec cx
+    jnz key6
+		;NUmber is in the stack now
+    
+showing:
+    ;Printing to LCD for conformation
+    call LCD_CLEAR
+    
+    mov bp,sp			;to print values entered by user
+    add bp,06h		;moving bp to beginning of entry
+    
+    mov cx,04h
+
+show_next1:
+    mov ax,[bp]
+    mov ah,al
+    or ah,30h			;ascii value for number on stack
+    call LCD_WRITE_CHAR
+    dec bp
+    dec bp
+    dec cx
+    jnz show_next1
+    
+    ;Now to get confirmation
+    
+key7:
+		call get_keypress
+    cmp bh,0AAh		;Yes case
+    jnz not_yes7
+    jmp yes_case7
+not_yes7:
+    cmp bh,0ABh		;No case
+    jnz key7			;  if its not yes or no wait for another keypress
+    pop ax					;Clearing stack
+    pop ax
+    pop ax
+    pop ax
+  
+    mov bh,0ddh		;Normal termination
+    ret
+    
+yes_case7:
+	mov di,0100h	;di is at beginning of program items array
+    
+    pop bx
+    pop ax
+    ;ax=0002 bx=0001		xx21
+    rol al,4h
+    add al,bl
+    ;al=21
+    mov dl,al
+    
+    pop bx
+    pop ax
+    ;ax=0003 bx=0006		3621
+    rol al,4h
+    add al,bl
+    ;al=21
+    mov dh,al
+    ;Now we have item code in dx
+    
+    
+    mov cx,100d
+search:    
+		;36210010000A6754
+    cmp	dx,word ptr[di]
+    jz found_item
+    inc di
+    inc di
+    inc di
+    inc di
+    inc di
+    inc di
+    dec cx
+    jnz search
+    mov bh,0ddh
+    jmp e
+    
+found_item:
+		mov word ptr[di],0000h
+    inc di
+    inc di
+    	mov word ptr[di],0000h
+    inc di
+    inc di
+    	mov word ptr[di],0000h
+    inc di
+    inc di
+    
+
+
+e:
+ret
+
+program_mode endp  																												;////////////////END OF PROGRAM SUBROUTINE///////////////////
+
+
+
+
+transaction_mode proc	near																							;///////////////START OF TRANSACTION MODE SUBROUTINE/////////////////
+                        
+       mov di,0050h                               ;Initialise total to 0
+       mov [di],00h
+       inc di
+       mov [di],00h
+                        
+new_item:
+ 		call get_keypress		;keypress stored in bh register	
+    
+    cmp bh,0AFh	;Code for item no.
+    jz t_add_item
+    
+    cmp bh,0BBh			;checking if total hsa  been pressed
+    jz show_total_cost
+    
+    
+    
+t_add_item:    
+mov cx,05h
+keyt1:
+    call get_keypress	;getting item no from user 
+    cmp bh,0Ah
+    jb t_number					
+    ;Not number
+    
+check_cancel:
+		cmp bh,0AEh
+    jnz check_enterkey
+    mov ax,cx
+    mov bx,05h
+    sub bx,ax			;Now we have pops to do in bx
+
+
+    cmp bx,0h
+    jz no_pop
+next_pop:
+    pop ax
+    dec bx
+    jnz next_pop
+no_pop:    
+    jmp t_add_item
+    
+    
+    
+check_enterkey:
+    cmp bh,0ACh			;Code for enter key
+    jnz t_ch_backspace2
+    cmp cx,01h
+    jnz keyt1
+    jmp t_showing1
+    
+    
+
+t_ch_backspace2:
+    cmp bh, 0ADh		;Backspace is pressed
+    jnz keyt1
+    cmp cx,05h			;at max 4 backspaces
+    jz t_no_backspace
+    pop dx				;remove character from stack 
+    inc cx
+t_no_backspace:
+		jmp keyt1			;wait for next keypress
+    
+    
+t_number:
+		mov bl,bh
+    mov bh,00h
+    push bx
+    dec cx
+    jnz keyt1
+    
+  ;Now we have got the item number in the stack
+  
+  
+t_showing1:    
+    ;Printing to LCD for conformation
+    call LCD_CLEAR
+    
+    mov bp,sp			;to print values entered by user
+    add bp,06h		;moving bp to beginning of entry
+    
+    mov cx,04h
+
+t_show_next:
+    mov ax,[bp]
+    mov ah,al
+    or ah,30h			;ascii value for number on stack
+    call LCD_WRITE_CHAR
+    dec bp
+    dec bp
+    dec cx
+    jnz t_show_next
+    
+    
+t_check_qty:
+		call get_keypress
+		cmp bh,0BAh
+    jnz t_check_qty
+    
+
+    
+    
+    
+    
+ 
+get_qty:
+
+mov cx,03h
+    
+t_key2:
+    call get_keypress	;getting quantity from user 
+    cmp bh,0Ah
+    jb t_number0
+    ;Not number
+    
+    cmp bh,0ACh  			;0ACh is the code for ENTER
+    jnz t_ch_backspace0
+    cmp cx,01h
+    jnz t_key2
+    ;jmp showing1
+    
+    
+t_ch_backspace0:    
+    cmp bh, 0ADh			;Backspace is pressed
+    jnz t_key2
+    cmp cx,03h
+    jz t_no_backspace0
+    pop dx				;remove character from stack
+    inc cx
+t_no_backspace0:
+		jmp t_key2				;wait for next keypress
+    
+t_number0:
+		mov bl,bh
+    mov bh,00h
+    push bx
+    dec cx
+    jnz t_key2
+    
+    ;Now we have got the quantity in stack as well(with item no.)
+    
+    ;Calculation starts(for the item entered)
+    ;Current cost = Item cost * qty
+    ;total cost += current cost
+    pop bx
+    pop ax
+    rol al,4h
+    add al,bl
+    mov dl,al
+    mov dh,00h
+    call bcd_to_bin
+    
+    pop bx
+    pop ax
+    rol al,4h
+    add al,bl
+    mov cl,al
+    
+    pop bx
+    pop ax
+    rol al,4h
+    add al,bl
+    mov ch,al
+    
+    ;Now cx contains the item code, which we need to check with the program array to get the cost
+    ;di contains start of program array          
+    mov di,0100h
+    mov ax,100d
+t_find_item:
+    cmp cx,word ptr[di]
+    jz t_item_found
+    inc di
+    inc di
+    inc di
+    inc di
+    inc di
+    inc di
+    dec ax
+    jnz t_find_item
+    jmp t_add_item
+    
+t_item_found:
+		inc di
+    inc di
+    inc di
+    inc di
+  	;Now we are at binary cost of the item
+    mov ax,word ptr[di]
+    inc di
+    inc di
+    ;Now we have binary qty in dx and binary cost in ax
+    
+    mul dx
+    mov dx,ax
+    push dx
+    ;;Sure that dx =00h and only ax contains actual cost of item in binary
+    ;To show the cost of the item(stored in dx)
+              
+    ;DS:0010 to DS:0014 used by by bin_to_bcd subroutine
+    mov di,10h																																					;1		CHECKED DURING EMULATOR RUN
+    call bin_to_bcd
+    
+    call LCD_CLEAR
+    
+    mov cx,05h			;di to di+4  has the bcd cost of the current item
+
+cur_cost_show_next:
+    mov ax,[di]
+    mov ah,al
+    or ah,30h			;ascii value for number at di + x
+    call LCD_WRITE_CHAR
+		inc di
+    dec cx
+    jnz cur_cost_show_next
+                          
+    pop dx
+    ;Adding dx to the total cost
+    ;DS:0050 and DS:0051 used to keep total
+   mov di,0050h																																				;	2		CHECKED DURING EMULATOR RUN
+   mov ax,[di]
+   add ax,dx
+   mov [di],ax
+   
+   jmp new_item
+    
+    					
+ show_total_cost:     
+ 
+        ;DS:0050 to DS:0051 used for total
+   mov di,0050h
+        																																				;	2		CHECKED DURING EMULATOR RUN
+   mov ax,[di]
+   mov dx,ax
+   
+   ;DS:0010 to DS:0014 used by by bin_to_bcd subroutine
+    mov di,10h																																					;1   CHECKED DURING EMULATOR RUN
+   
+  	call bin_to_bcd
+    
+    call LCD_CLEAR
+    
+    mov cx,05h
+    mov ax,dx
+   
+tot_cost_show_next:
+    mov ax,[di]
+    mov ah,al
+    or ah,30h			;ascii value for number at di + x
+    call LCD_WRITE_CHAR
+		inc di
+    dec cx
+    jnz tot_cost_show_next
+    push CX
+    mov CX,50000d           ;1 second delay
+    call DELAY
+    mov CX,50000d           ;1 second delay
+    call DELAY
+    pop CX
+    
+    ret
+transaction_mode endp
+																											;/////////////END OF TRANSACTION MODE SUBROUTINE/////////////
+    
+
+
+delay_deb proc near																									;///////////////////START OF DELAY//////////////////////////////
+    push CX
+    mov CX,1000d              ;For 20 ms delay
+	JCXZ DEB_DELAY_END
+	DEB_DEL_LOOP:
+	LOOP DEB_DEL_LOOP	
+	DEB_DELAY_END: 
+	pop CX
+RET
+delay_deb endp
+
+  
+bcd_to_bin proc near																										;////////////START OF BCD_TO_BIN SUBROUTINE//////////////////
+    ;input= 2 byte bcd number in DX
+    ;output= 2 byte binary number in DX
+    push AX
+    push CX
+    push BX
+    mov ax,0h 
+    mov bx,dx
+    mov cx,dx
+    and bh,0f0h
+    ror bh,4h 
+    and ch,0fh
+    and bl,0f0h
+    ror bl,4h
+    and cl,0fh
+    ;Now digits are in bh,ch,bl,cl
+    ;push CX 
+    ;DX will contain sum
+    mov DX,0h
+    push DX
+    
+    mov al,bh 
+    mov dx,1000d
+    mul dx
+    pop dx
+    add dx,ax
+    push dx 
+        
+    mov ax,0h
+    mov al,bl
+    mov dh,10d
+    mul dh
+    pop dx
+    add dx,ax
+    push dx 
+    
+    ;pop CX
+    
+    mov ax,0h
+    mov al,ch 
+    mov dh,100d
+    mul dh
+    pop dx
+    add dx,ax
+    push dx
+    
+    mov ax,0h
+    mov al,cl
+    mov dh,1d
+    mul dh
+    pop dx
+    add dx,ax
+    
+    ;mov dx,bx
+    ;DX now contains binary equivalent
+    pop BX
+    pop CX
+    pop AX
+    ret
+bcd_to_bin endp																												;///////////////////END OF BCD_TO_BIN SUBROUTINE///////
+    
+bin_to_bcd proc near	;Check for equivalent instruction in 8086									;//////////////////START OF BIN_TO_BCD SUBPROG///////////
+    ;input=2 byte binary no.(maximum 65535) in DX
+    ;        di register has mem loc to store bcd no. 
+    ;output= 5 bytes in [di] to [di+4] containing digits of bcd no. eg 2^16 -1 -> 0605050305
+    push AX
+    push BX
+    push CX
+    
+    mov ax,dx
+    mov dx,0h
+    
+    mov bx,10000d
+    div bx
+    ;remainder in dx, quotient in ax(will not exceed 09)
+    mov [di],al
+    inc di
+    
+    mov ax,dx
+    mov dx,0h
+    mov bx,1000d
+    div bx
+    mov [di],al
+    inc di
+    
+    mov ax,dx
+    mov dx,0h
+    mov bx,100d
+    div bx
+    mov [di],al
+    inc di
+    
+    mov ax,dx
+    mov dx,0h
+    mov bx,10d
+    div bx
+    mov [di],al
+    inc di
+    
+    mov ax,dx
+    mov dx,0h
+    mov bx,1d
+    div bx
+    mov [di],al
+    
+    dec di
+    dec di
+    dec di
+    dec di
+    
+    pop CX
+    pop BX
+    pop AX  
+    ret
+bin_to_bcd endp																																	;//////////END OF BIN_TO_BCD SUBPROGRAM////////////////
+     
+     
+get_keypress proc near 																													;//////////START OF GETKEYPRESS SUBPROG///////////////
+    push AX
+    
+lk_closed: 
+    ;check if no keys are pressed(all high)
+    in al,04h
+    and al,0f0h ;We only want higher bits 
+    cmp al,0f0h
+    jne lk_closed
+    
+    call delay_deb
+    
+    ;No keys are pressed
+    ;check if key is pressed/ lock is closed
+sec_stop:
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je sec_stop
+    ;1 key is pressed 
+    
+    ;check if lock is closed
+    cmp al,070h
+    jne th_stop
+    ;code for disabling system
+    mov bh,0FFh
+    pop AX
+    jmp reset_stack_check_lock
+    
+    
+th_stop:
+    call delay_deb      
+    
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je sec_stop
+    
+    ;decoding keypress       
+    ;storing PC4-PC7 in ah
+    in al,04h 
+    and al,0f0h
+    mov ah,al 
+    ror ah,04h
+
+A1:    
+    mov al,0feh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A2:
+    mov al,0feh
+    jmp decode 
+    
+A2:    
+    mov al,0fdh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A3:
+    mov al,0fdh
+    jmp decode
+    
+A3:    
+    mov al,0fbh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A4:
+    mov al,0fbh
+    jmp decode
+    
+A4:    
+    mov al,0f7h
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A5:
+    mov al,0f7h
+    jmp decode
+    
+A5:    
+    mov al,0efh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A6:
+    mov al,0efh
+    jmp decode
+    
+A6:    
+    mov al,0dfh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A7:
+    mov al,0dfh
+    jmp decode
+    
+A7:    
+    mov al,0bfh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    je A8:
+    mov al,0bfh
+    jmp decode
+    
+A8:    
+    mov al,07fh
+    out 00h,al
+    in al,04h
+    and al,0f0h
+    cmp al,0f0h
+    ;check for keypress again, if not found till now
+    je sec_stop
+    mov al,07fh
+    jmp decode
+    
+decode:
+    ;Now ah,al contains the code for the keypress
+    ;We will refer to a lookup table(in di) to convert to a more useful code 
+                                                             
+    push DI                                                     
+    ;This address is where the lookup table is stored(Change)
+    lea di,key_press_table
+    ;0EFE~ Key 0 pressed
+    ;0EFE000EFD010EFB02
+find:
+    mov dx,word ptr cs:[di]
+    cmp ax, dx
+    je found
+    inc di
+    inc di
+    inc di
+    jmp find    ;Hopefully this should never be stuck in an infinte loop
+    
+found:
+    inc di
+    inc di
+    mov bh,cs:[di] 
+    pop DI
+    pop AX
+    ret
+    
+get_keypress endp																										;/////////////GET_KEYPRESS SUBROUTINE SUBPROG///////////////////////
+
+
+
+																  ;////////////////////////////////////////////////////////////////////        
+        																													        ;/																																	 /
+                                                                  ;/							START OF LCD FUNCTIONS															 /	
+																																	;/																																	 /
+                                                                  ;////////////////////////////////////////////////////////////////////
+
+
+
+PROC LCD_INIT																											;/////////////START OF LCD_INIT////////////////////////////////////
+    MOV AL,0d0H
+    OUT 04h,AL ;SETTING RW TO 0
+    MOV CX,100
+    CALL DELAY  
+    
+    MOV AL,0E0H
+    OUT 04h,AL ;SETTING RS TO 0
+    MOV CX,100
+    CALL DELAY
+    
+    MOV AL,0B0H
+    OUT PORTC,AL ;SETTING E TO 0
+    MOV CX,200
+    CALL DELAY
+
+    ;RESET SEQUENCE
+    MOV AH,30H
+    CALL LCD_CMD
+    MOV CX,250
+    CALL DELAY
+    
+    MOV AH,30H
+    CALL LCD_CMD
+    MOV CX,50
+    CALL DELAY
+    
+    MOV AH,30H
+    CALL LCD_CMD
+    MOV CX,500
+    CALL DELAY
+    
+    ;FUNCTION SET
+    MOV AH,30h  ;USE TWO LINES AND 5*8 MATRIX
+    CALL LCD_CMD
+
+    MOV AH,0Ch  ;DISPLAY ON CURSOR OFF
+    CALL LCD_CMD
+
+    MOV AH,01H ;CLEAR SCREEN
+    CALL LCD_CMD
+
+    MOV AH,06h;INCREMENT CURSOR 
+    CALL LCD_CMD
+
+    RET
+ENDP LCD_INIT																											;/////////////////END OF LCD_INIT////////////////////////////////////
+    
+
+                         
+;sends commands to LCD
+PROC LCD_CMD																											;///////////START OF LCD_CMD/////////////////////////////////////////
+;input: AH = command code
+;output: none
+
+;save registers
+    PUSH DX
+    PUSH AX
+;make rs=0 
+    in al,04h
+    ;MOV AL,PORTC_VAL
+    AND AL,0FDH     ;En-RS-RW
+    CALL OUT_C
+;set out data pins
+    MOV AL,AH
+    CALL OUT_B
+;make En=1
+    in al,04h
+    ;MOV AL,PORTC_VAL
+    OR  AL,100B     ;En-RS-RW
+    CALL OUT_C
+;delay 1ms
+    MOV CX,50
+    CALL DELAY
+;make En=0 
+    in al,04h
+    ;MOV AL,PORTC_VAL
+    AND AL,0FBH     ;En-RS-RW
+    CALL OUT_C
+;delay 1ms
+    MOV CX,50
+    CALL DELAY
+;restore registers
+    POP AX
+    POP DX  
+    RET
+ENDP LCD_CMD
+
+PROC LCD_CLEAR      ;TO CLEAR SCREEN														;///////////////////////START LCD_CLEAR//////////////////////////
+    MOV AH,1
+    CALL LCD_CMD
+    RET 
+ENDP LCD_CLEAR																									;//////////////////////ENDD OF LCD_CLEAR////////////////////////
+
+  
+DELAY proc near																									;///////////////////START OF DELAY//////////////////////////////
+;input: CX, this value controls the delay. CX=50 means 1ms
+;output: none   
+	JCXZ DELAY_END
+	DEL_LOOP:
+	LOOP DEL_LOOP	
+	DELAY_END:
+RET
+DELAY endp																											;/////////////// END OF DELAY/////////////////////////////////
+
+
+;writes a character on current cursor position
+PROC LCD_WRITE_CHAR																							;/////////////START OF WRITE_CHAR////////////////////////////
+;input: AH
+;output: none
+;save registers
+    PUSH AX
+;set RS=1 
+    in al,04h
+    ;MOV AL,PORTC_VAL
+    OR  AL,10B      ;EN-RS-RW
+    CALL OUT_C
+;set out the data pins
+    MOV AL,AH
+    CALL OUT_B
+;set En=1  
+    in al,04h
+    ;MOV AL,PORTC_VAL
+    OR  AL,100B     ;EN-RS-RW
+    CALL OUT_C
+;delay 1ms
+    MOV CX,50
+    CALL DELAY
+;set En=0  
+    in al,04h
+    ;MOV AL,PORTC_VAL
+    AND AL,0FBH     ;EN-RS-RW
+    CALL OUT_C
+;return
+    POP AX
+    RET 
+ENDP LCD_WRITE_CHAR																				;/////////////////////END OF WRITE_CHAR SUBPROG/////////////////////				
+
+
+;sets the cursor
+PROC LCD_SET_CUR																					;////////////////////START OF LCD_SET_CUR//////////////////////////
+;input: DL=ROW, DH=COL
+;       DL = 1, means upper row
+;       DL = 2, means lower row
+;       DH = 1-8, 1st column is 1
+;output: none
+
+;save registers
+    PUSH AX
+;LCD uses 0 based column index
+    DEC DH
+;select case    
+    CMP DL,1
+    JE  @ROW1
+    CMP DL,2
+    JE  @ROW2
+    JMP @LCD_SET_CUR_END
+    
+;if DL==1 then
+    @ROW1:
+        MOV AH,80H
+    JMP @LCD_SET_CUR_ENDCASE
+    
+;if DL==2 then
+    @ROW2:
+        MOV AH,0C0H
+    JMP @LCD_SET_CUR_ENDCASE
+        
+;execute the command
+    @LCD_SET_CUR_ENDCASE:   
+    ADD AH,DH
+    CALL LCD_CMD
+    
+;exit from procedure
+    @LCD_SET_CUR_END:
+    POP AX
+    RET
+ENDP LCD_SET_CUR																							;//////////////////////END OF LCD_SET_CUR/////////////////////////
+
+PROC LCD_SHOW_CUR																							;///////////////////START OF LCD_SHOW_CUR/////////////////////////
+;input: none
+;output: none
+    PUSH AX
+    MOV AH,0FH
+    CALL LCD_CMD
+    POP AX
+    RET
+ENDP LCD_SHOW_CUR																						;///////////////////END OF LCD_SHOW_CUR/////////////////////////
+
+PROC LCD_HIDE_CUR																						;///////////////////START OF HIDE_CUR/////////////////////////
+;input: none
+;output: none
+    PUSH AX
+    MOV AH,0CH
+    CALL LCD_CMD
+    POP AX
+    RET
+ENDP LCD_HIDE_CUR																						;///////////////////END OF LCD_HIDE_CUR/////////////////////////
+
+PROC OUT_B  																								;///////////////////START OF PROC OUT_B/////////////////////////
+;SENDS VALUE IN AL TO DATA LINES OF LCD AND STORES THAT VAL IN PORTB_VAL
+;input: AL
+;output: PORTB_VAL
+    PUSH DX
+    MOV DX,02h
+    OUT DX,AL
+    ;MOV PORTB_VAL,AL
+    POP DX
+    RET 
+ENDP OUT_B																									;///////////////////END OF OUT_B PROC/////////////////////////
+
+PROC OUT_C 																									;///////////////////START OF OUT_C PROC/////////////////////////
+;USED TO SET VALUES OF RS, RW AND E 
+;input: AL
+;output: PORTC_VAL  
+    PUSH DX
+    MOV DX,04h
+    OUT DX,AL
+    ;MOV PORTC_VAL,AL
+    POP DX
+    RET
+ENDP OUT_C 																									;///////////////////END OF OUT_C PROC/////////////////////////	
+
+ 
+
+
+        
+        
+        
+
+    
+    
+   
